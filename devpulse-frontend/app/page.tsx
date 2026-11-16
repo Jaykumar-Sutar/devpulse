@@ -23,8 +23,11 @@ interface Task {
   task_name?: string;
   description?: string;
   status: string;
-  project_id: number;
-  assigned_to: number;
+  project_id?: number;
+  projectId?: number;
+  assigned_to?: number;
+  userId?: number;
+  user_id?: number;
 }
 
 export default function Dashboard() {
@@ -207,10 +210,13 @@ export default function Dashboard() {
     }
   };
 
-  // Filter tasks based on selected project or user
+  // Flexible Filter logic supporting multiple database key variations
   const filteredTasks = tasks.filter((task) => {
-    if (selectedProjectId && task.project_id !== selectedProjectId) return false;
-    if (selectedUserId && task.assigned_to !== selectedUserId) return false;
+    const taskProjectId = task.project_id ?? task.projectId;
+    const taskUserId = task.assigned_to ?? task.userId ?? task.user_id;
+
+    if (selectedProjectId && taskProjectId !== selectedProjectId) return false;
+    if (selectedUserId && taskUserId !== selectedUserId) return false;
     return true;
   });
 
@@ -301,6 +307,7 @@ export default function Dashboard() {
                 type="text"
                 name="userName"
                 id="userName"
+                autoComplete="name"
                 placeholder="Name (e.g., Alex)"
                 value={newUserName}
                 onChange={(e) => setNewUserName(e.target.value)}
@@ -310,6 +317,7 @@ export default function Dashboard() {
                 type="email"
                 name="userEmail"
                 id="userEmail"
+                autoComplete="email"
                 placeholder="Email (e.g., alex@landmark.com)"
                 value={newUserEmail}
                 onChange={(e) => setNewUserEmail(e.target.value)}
@@ -319,6 +327,7 @@ export default function Dashboard() {
                 type="text"
                 name="userRole"
                 id="userRole"
+                autoComplete="organization-title"
                 placeholder="Role (e.g., Backend Lead)"
                 value={newUserRole}
                 onChange={(e) => setNewUserRole(e.target.value)}
@@ -340,6 +349,7 @@ export default function Dashboard() {
                 type="text"
                 name="projectTitle"
                 id="projectTitle"
+                autoComplete="off"
                 placeholder="Project Title"
                 value={newProjectTitle}
                 onChange={(e) => setNewProjectTitle(e.target.value)}
@@ -348,6 +358,7 @@ export default function Dashboard() {
               <textarea
                 name="projectDescription"
                 id="projectDescription"
+                autoComplete="off"
                 placeholder="Short Description"
                 rows={2}
                 value={newProjectDesc}
@@ -370,6 +381,7 @@ export default function Dashboard() {
                 type="text"
                 name="taskTitle"
                 id="taskTitle"
+                autoComplete="off"
                 placeholder="What needs to be done?"
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
@@ -379,6 +391,7 @@ export default function Dashboard() {
                 <select
                   name="taskProject"
                   id="taskProject"
+                  autoComplete="off"
                   value={newTaskProjectId}
                   onChange={(e) => setNewTaskProjectId(e.target.value)}
                   className="bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
@@ -391,6 +404,7 @@ export default function Dashboard() {
                 <select
                   name="taskAssignee"
                   id="taskAssignee"
+                  autoComplete="off"
                   value={newTaskAssignedTo}
                   onChange={(e) => setNewTaskAssignedTo(e.target.value)}
                   className="bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
@@ -506,43 +520,57 @@ export default function Dashboard() {
               <p className="text-sm text-slate-500 text-center py-6">No tasks found for this filter.</p>
             ) : (
               <div className="space-y-3">
-                {filteredTasks.map((task, index) => (
-                  <div key={task.id || index} className="p-4 bg-slate-950/70 border border-slate-800/70 rounded-xl hover:border-emerald-500/40 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] transition shadow-sm flex flex-col justify-between gap-3">
-                    <div>
-                      <div className="flex justify-between items-start gap-2 mb-1">
-                        <p className="font-bold text-white text-sm tracking-wide">
-                          {task.title || task.task_name || task.name || task.description || 'Untitled Task'}
-                        </p>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                          task.status === 'Completed'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
-                        }`}>
-                          {task.status || 'In Progress'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-900">
-                      <button
-                        onClick={() => handleUpdateStatus(task.id, task.status)}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer"
-                      >
-                        Toggle Status
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        className="text-xs text-rose-400 hover:text-rose-300 font-medium transition cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                {filteredTasks.map((task, index) => {
+  // Find the matching project and user for this task
+  const assignedProject = projects.find(p => p.id === (task.project_id || task.projectId));
+  const assignedUser = users.find(u => u.id === (task.assigned_to || task.userId || task.user_id));
+
+  return (
+    <div key={task.id || index} className="p-4 bg-slate-950/70 border border-slate-800/70 rounded-xl hover:border-emerald-500/40 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] transition shadow-sm flex flex-col justify-between gap-3">
+      <div>
+        <div className="flex justify-between items-start gap-2 mb-1">
+          <p className="font-bold text-white text-sm tracking-wide">
+            {task.title || task.task_name || task.name || task.description || 'Untitled Task'}
+          </p>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+            task.status === 'Completed'
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+              : 'bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+          }`}>
+            {task.status || 'In Progress'}
+          </span>
+        </div>
+
+        {/* Project & Assignee Badges */}
+        <div className="flex flex-wrap gap-2 mt-2">
+          {assignedProject && (
+            <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md font-medium">
+              📁 {assignedProject.title || assignedProject.name}
+            </span>
+          )}
+          {assignedUser && (
+            <span className="text-[10px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md font-medium">
+              👤 {assignedUser.name}
+            </span>
+          )}
         </div>
       </div>
-    </main>
+
+      <div className="flex justify-between items-center pt-2 border-t border-slate-900">
+        <button
+          onClick={() => handleUpdateStatus(task.id, task.status)}
+          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer"
+        >
+          Toggle Status
+        </button>
+        <button
+          onClick={() => handleDeleteTask(task.id)}
+          className="text-xs text-rose-400 hover:text-rose-300 font-medium transition cursor-pointer"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
   );
+})}
 }
