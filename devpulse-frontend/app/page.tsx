@@ -220,6 +220,16 @@ export default function Dashboard() {
     return true;
   });
 
+  // Filter projects associated with the selected user's tasks (or show all if no user selected)
+  const filteredProjects = projects.filter((project) => {
+    if (!selectedUserId) return true;
+    return tasks.some((task) => {
+      const taskProjectId = task.project_id ?? task.projectId;
+      const taskUserId = task.assigned_to ?? task.userId ?? task.user_id;
+      return taskProjectId === project.id && taskUserId === selectedUserId;
+    });
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-indigo-400 font-medium text-lg gap-3">
@@ -474,11 +484,11 @@ export default function Dashboard() {
               <span className="flex items-center gap-2">📁 Projects</span>
               <span className="text-[10px] text-slate-500 font-normal">(Click to filter)</span>
             </h3>
-            {projects.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-6">No projects found.</p>
+            {filteredProjects.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">No projects found for this user.</p>
             ) : (
               <div className="space-y-3">
-                {projects.map((project) => {
+                {filteredProjects.map((project) => {
                   const isSelected = selectedProjectId === project.id;
                   return (
                     <div
