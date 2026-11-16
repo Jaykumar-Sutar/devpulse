@@ -521,56 +521,62 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {filteredTasks.map((task, index) => {
-  // Find the matching project and user for this task
-  const assignedProject = projects.find(p => p.id === (task.project_id || task.projectId));
-  const assignedUser = users.find(u => u.id === (task.assigned_to || task.userId || task.user_id));
+                  const assignedProject = projects.find(p => p.id === (task.project_id || task.projectId));
+                  const assignedUser = users.find(u => u.id === (task.assigned_to || task.userId || task.user_id));
 
-  return (
-    <div key={task.id || index} className="p-4 bg-slate-950/70 border border-slate-800/70 rounded-xl hover:border-emerald-500/40 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] transition shadow-sm flex flex-col justify-between gap-3">
-      <div>
-        <div className="flex justify-between items-start gap-2 mb-1">
-          <p className="font-bold text-white text-sm tracking-wide">
-            {task.title || task.task_name || task.name || task.description || 'Untitled Task'}
-          </p>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-            task.status === 'Completed'
-              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-              : 'bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
-          }`}>
-            {task.status || 'In Progress'}
-          </span>
-        </div>
+                  return (
+                    <div key={task.id || index} className="p-4 bg-slate-950/70 border border-slate-800/70 rounded-xl hover:border-emerald-500/40 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] transition shadow-sm flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="flex justify-between items-start gap-2 mb-1">
+                          <p className="font-bold text-white text-sm tracking-wide">
+                            {task.title || task.task_name || task.name || task.description || 'Untitled Task'}
+                          </p>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            task.status === 'Completed'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                          }`}>
+                            {task.status || 'In Progress'}
+                          </span>
+                        </div>
 
-        {/* Project & Assignee Badges */}
-        <div className="flex flex-wrap gap-2 mt-2">
-          {assignedProject && (
-            <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md font-medium">
-              📁 {assignedProject.title || assignedProject.name}
-            </span>
-          )}
-          {assignedUser && (
-            <span className="text-[10px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md font-medium">
-              👤 {assignedUser.name}
-            </span>
-          )}
+                        {/* Project & Assignee Badges */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {assignedProject && (
+                            <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md font-medium">
+                              📁 {assignedProject.title || assignedProject.name}
+                            </span>
+                          )}
+                          {assignedUser && (
+                            <span className="text-[10px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md font-medium">
+                              👤 {assignedUser.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-900">
+                        <button
+                          onClick={() => handleUpdateStatus(task.id, task.status)}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer"
+                        >
+                          Toggle Status
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="text-xs text-rose-400 hover:text-rose-300 font-medium transition cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      <div className="flex justify-between items-center pt-2 border-t border-slate-900">
-        <button
-          onClick={() => handleUpdateStatus(task.id, task.status)}
-          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer"
-        >
-          Toggle Status
-        </button>
-        <button
-          onClick={() => handleDeleteTask(task.id)}
-          className="text-xs text-rose-400 hover:text-rose-300 font-medium transition cursor-pointer"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
+    </main>
   );
-})}
 }
