@@ -220,14 +220,15 @@ export default function Dashboard() {
     return true;
   });
 
-  // Filter projects associated with the selected user's tasks (or show all if no user selected)
+  // Strict Filter for projects associated with the selected user's tasks
   const filteredProjects = projects.filter((project) => {
     if (!selectedUserId) return true;
-    return tasks.some((task) => {
+    const hasAssignedTask = tasks.some((task) => {
       const taskProjectId = task.project_id ?? task.projectId;
       const taskUserId = task.assigned_to ?? task.userId ?? task.user_id;
       return taskProjectId === project.id && taskUserId === selectedUserId;
     });
+    return hasAssignedTask;
   });
 
   if (loading) {
