@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Toaster, toast } from 'sonner';
 
 interface User {
   id: number;
@@ -70,6 +71,7 @@ export default function Dashboard() {
       setTasks(tasksData);
     } catch (err) {
       console.error('Error fetching data:', err);
+      toast.error('Failed to sync workspace data');
     } finally {
       setLoading(false);
     }
@@ -82,7 +84,10 @@ export default function Dashboard() {
   // Create User Handler
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName.trim() || !newUserRole.trim()) return;
+    if (!newUserName.trim() || !newUserRole.trim()) {
+      toast.warning('Please enter both a name and a role');
+      return;
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/users`, {
@@ -95,20 +100,27 @@ export default function Dashboard() {
         }),
       });
       if (res.ok) {
+        toast.success(`Team member "${newUserName.trim()}" added`);
         setNewUserName('');
         setNewUserEmail('');
         setNewUserRole('');
         fetchData();
+      } else {
+        toast.error('Could not add team member');
       }
     } catch (err) {
       console.error('Error creating user:', err);
+      toast.error('Network error while adding user');
     }
   };
 
   // Create Project Handler
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectTitle.trim()) return;
+    if (!newProjectTitle.trim()) {
+      toast.warning('Please enter a project title');
+      return;
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/projects`, {
@@ -120,19 +132,26 @@ export default function Dashboard() {
         }),
       });
       if (res.ok) {
+        toast.success(`Project "${newProjectTitle.trim()}" created`);
         setNewProjectTitle('');
         setNewProjectDesc('');
         fetchData();
+      } else {
+        toast.error('Could not create project');
       }
     } catch (err) {
       console.error('Error creating project:', err);
+      toast.error('Network error while creating project');
     }
   };
 
   // Create Task Handler
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTaskTitle.trim()) return;
+    if (!newTaskTitle.trim()) {
+      toast.warning('Please enter a task title');
+      return;
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/tasks`, {
@@ -147,13 +166,17 @@ export default function Dashboard() {
       });
 
       if (res.ok) {
+        toast.success('New task added to workflow');
         setNewTaskTitle('');
         setNewTaskProjectId('');
         setNewTaskAssignedTo('');
         fetchData();
+      } else {
+        toast.error('Could not create task');
       }
     } catch (err) {
       console.error('Error creating task:', err);
+      toast.error('Network error while creating task');
     }
   };
 
@@ -166,9 +189,13 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        toast.success(`Task marked as ${nextStatus}`);
+        fetchData();
+      }
     } catch (err) {
       console.error('Error updating task status:', err);
+      toast.error('Failed to update task status');
     }
   };
 
@@ -178,9 +205,13 @@ export default function Dashboard() {
       const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
         method: 'DELETE',
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        toast.success('Task deleted');
+        fetchData();
+      }
     } catch (err) {
       console.error('Error deleting task:', err);
+      toast.error('Failed to delete task');
     }
   };
 
@@ -191,9 +222,14 @@ export default function Dashboard() {
       const res = await fetch(`${API_URL}/api/users/${userId}`, {
         method: 'DELETE',
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        if (selectedUserId === userId) setSelectedUserId(null);
+        toast.success('Team member removed');
+        fetchData();
+      }
     } catch (err) {
       console.error('Error deleting user:', err);
+      toast.error('Failed to remove user');
     }
   };
 
@@ -204,9 +240,14 @@ export default function Dashboard() {
       const res = await fetch(`${API_URL}/api/projects/${projectId}`, {
         method: 'DELETE',
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        if (selectedProjectId === projectId) setSelectedProjectId(null);
+        toast.success('Project deleted');
+        fetchData();
+      }
     } catch (err) {
       console.error('Error deleting project:', err);
+      toast.error('Failed to delete project');
     }
   };
 
@@ -242,6 +283,8 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white pb-20 relative overflow-hidden">
+      <Toaster theme="dark" position="bottom-right" richColors />
+
       {/* Background Neon Ambient Glows */}
       <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[140px] pointer-events-none animate-pulse"></div>
       <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-emerald-600/20 rounded-full blur-[140px] pointer-events-none"></div>
