@@ -683,13 +683,31 @@ export default function Dashboard() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-indigo-400 font-medium text-lg gap-3">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.8)]"></div>
-          Loading DevPulse Enterprise Workspace...
+        <div className="min-h-screen bg-slate-950 flex f...">
+          <div className="w-8 h-8 ...">Loading DevPulse Enterprise Workspace...</div>
         </div>
       }
     >
       <DashboardContent />
+      
+      {/* 🚀 Floating Profile Badge */}
+      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-slate-900/90 px-4 py-2 text-xs font-medium text-slate-200 shadow-lg backdrop-blur-md border border-slate-700 hover:border-indigo-500 transition-all">
+        <img 
+          src="https://github.com/Jaykumar-Sutar.png" 
+          alt="Jaykumar Sutar" 
+          className="h-5 w-5 rounded-full border border-indigo-400"
+        />
+        <span>Built by <strong className="text-white">Jaykumar Sutar</strong></span>
+        <a 
+          href="https://github.com/Jaykumar-Sutar/devpulse" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="ml-1 rounded bg-indigo-600 px-2 py-0.5 text-[10px] text-white hover:bg-indigo-500 transition-colors"
+        >
+          GitHub ↗
+        </a>
+      </div>
+
     </Suspense>
   );
 }
