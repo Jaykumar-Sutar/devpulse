@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 
 interface User {
@@ -31,7 +32,11 @@ interface Task {
   user_id?: number;
 }
 
-export default function Dashboard() {
+function DashboardContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -49,18 +54,54 @@ export default function Dashboard() {
   const [newTaskProjectId, setNewTaskProjectId] = useState('');
   const [newTaskAssignedTo, setNewTaskAssignedTo] = useState('');
 
-  // Filter States for Interactivity
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  // Derive Filter States directly from URL Query Params
+  const userParam = searchParams.get('user');
+  const projectParam = searchParams.get('project');
+  const selectedUserId = userParam ? Number(userParam) : null;
+  const selectedProjectId = projectParam ? Number(projectParam) : null;
+
+  // Retrieve or generate a unique per-browser workspace ID
+  const getWorkspaceHeaders = () => {
+    let workspaceId = localStorage.getItem('devpulse_workspace_id');
+    if (!workspaceId) {
+      workspaceId = crypto.randomUUID();
+      localStorage.setItem('devpulse_workspace_id', workspaceId);
+    }
+    return {
+      'Content-Type': 'application/json',
+      'x-workspace-id': workspaceId,
+    };
+  };
+
+  // Helper to update URL query parameters cleanly
+  const updateFilters = (newUserId: number | null, newProjectId: number | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (newUserId) {
+      params.set('user', String(newUserId));
+    } else {
+      params.delete('user');
+    }
+
+    if (newProjectId) {
+      params.set('project', String(newProjectId));
+    } else {
+      params.delete('project');
+    }
+
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  };
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://devpulse-5fvi.onrender.com';
 
   const fetchData = async () => {
     try {
+      const headers = getWorkspaceHeaders();
       const [usersRes, projectsRes, tasksRes] = await Promise.all([
-        fetch(`${API_URL}/api/users`),
-        fetch(`${API_URL}/api/projects`),
-        fetch(`${API_URL}/api/tasks`),
+        fetch(`${API_URL}/api/users`, { headers }),
+        fetch(`${API_URL}/api/projects`, { headers }),
+        fetch(`${API_URL}/api/tasks`, { headers }),
       ]);
       const usersData = await usersRes.json();
       const projectsData = await projectsRes.json();
@@ -92,7 +133,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getWorkspaceHeaders(),
         body: JSON.stringify({
           name: newUserName.trim(),
           email: newUserEmail.trim(),
@@ -125,7 +166,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getWorkspaceHeaders(),
         body: JSON.stringify({
           title: newProjectTitle.trim(),
           description: newProjectDesc.trim(),
@@ -156,7 +197,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/tasks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getWorkspaceHeaders(),
         body: JSON.stringify({
           title: newTaskTitle.trim(),
           project_id: newTaskProjectId ? Number(newTaskProjectId) : (selectedProjectId || projects[0]?.id || 1),
@@ -186,7 +227,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getWorkspaceHeaders(),
         body: JSON.stringify({ status: nextStatus }),
       });
       if (res.ok) {
@@ -204,6 +245,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
         method: 'DELETE',
+        headers: getWorkspaceHeaders(),
       });
       if (res.ok) {
         toast.success('Task deleted');
@@ -221,9 +263,10 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/users/${userId}`, {
         method: 'DELETE',
+        headers: getWorkspaceHeaders(),
       });
       if (res.ok) {
-        if (selectedUserId === userId) setSelectedUserId(null);
+        if (selectedUserId === userId) updateFilters(null, selectedProjectId);
         toast.success('Team member removed');
         fetchData();
       }
@@ -239,9 +282,10 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${API_URL}/api/projects/${projectId}`, {
         method: 'DELETE',
+        headers: getWorkspaceHeaders(),
       });
       if (res.ok) {
-        if (selectedProjectId === projectId) setSelectedProjectId(null);
+        if (selectedProjectId === projectId) updateFilters(selectedUserId, null);
         toast.success('Project deleted');
         fetchData();
       }
@@ -307,7 +351,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-4">
           {(selectedProjectId || selectedUserId) && (
             <button
-              onClick={() => { setSelectedProjectId(null); setSelectedUserId(null); }}
+              onClick={() => updateFilters(null, null)}
               className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 px-3 py-1.5 rounded-full font-medium transition cursor-pointer shadow-[0_0_10px_rgba(99,102,241,0.2)]"
             >
               Reset Filters ✕
@@ -315,7 +359,7 @@ export default function Dashboard() {
           )}
           <div className="hidden sm:flex items-center gap-2 bg-slate-900/80 border border-emerald-500/30 px-3 py-1.5 rounded-full text-xs text-emerald-400 font-medium shadow-[0_0_15px_rgba(16,185,129,0.2)]">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,1)]"></span>
-            Neon DB Connected
+            Private Workspace Active
           </div>
         </div>
       </nav>
@@ -485,7 +529,7 @@ export default function Dashboard() {
               <span className="text-[10px] text-slate-500 font-normal">(Click to filter)</span>
             </h3>
             {users.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-6">No users found.</p>
+              <p className="text-sm text-slate-500 text-center py-6">No users yet. Add a team member above!</p>
             ) : (
               <div className="space-y-3">
                 {users.map((user) => {
@@ -493,7 +537,7 @@ export default function Dashboard() {
                   return (
                     <div
                       key={user.id}
-                      onClick={() => setSelectedUserId(isSelected ? null : user.id)}
+                      onClick={() => updateFilters(isSelected ? null : user.id, selectedProjectId)}
                       className={`p-4 rounded-xl transition cursor-pointer border flex justify-between items-start ${
                         isSelected
                           ? 'bg-indigo-950/80 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.4)]'
@@ -529,7 +573,7 @@ export default function Dashboard() {
               <span className="text-[10px] text-slate-500 font-normal">(Click to filter)</span>
             </h3>
             {filteredProjects.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-6">No projects found for this user.</p>
+              <p className="text-sm text-slate-500 text-center py-6">No projects found.</p>
             ) : (
               <div className="space-y-3">
                 {filteredProjects.map((project) => {
@@ -537,7 +581,7 @@ export default function Dashboard() {
                   return (
                     <div
                       key={project.id}
-                      onClick={() => setSelectedProjectId(isSelected ? null : project.id)}
+                      onClick={() => updateFilters(selectedUserId, isSelected ? null : project.id)}
                       className={`p-4 rounded-xl transition cursor-pointer border flex justify-between items-start ${
                         isSelected
                           ? 'bg-amber-950/80 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.4)]'
@@ -632,5 +676,20 @@ export default function Dashboard() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-indigo-400 font-medium text-lg gap-3">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.8)]"></div>
+          Loading DevPulse Enterprise Workspace...
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }
