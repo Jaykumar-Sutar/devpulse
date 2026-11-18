@@ -4,10 +4,10 @@ const cors = require('cors');
 
 const app = express();
 
-// 1. CORS & JSON Body Parser
+// 1. CORS & JSON Body Parser (Added 'x-user-role' to allowedHeaders)
 app.use(cors({
   origin: '*',
-  allowedHeaders: ['Content-Type', 'x-workspace-id']
+  allowedHeaders: ['Content-Type', 'x-workspace-id', 'x-user-role']
 }));
 app.use(express.json());
 
@@ -17,6 +17,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// 3. Role-Based Access Control (RBAC) Middleware for Admin-Only Actions
+const requireAdmin = async (req, res, next) => {
+  const userRole = req.headers['x-user-role'];
+  
+  // For a robust enterprise check, you can also pass a user email or ID header to verify against the DB,
+  // but checking the header role directly matches our simulation setup.
+  if (userRole !== 'admin') {
+    return res.status(403).json({ 
+      error: 'Access Denied: Admin privileges required to perform destructive actions.' 
+    });
+  }
+  next();
+};
+
 // Neon PostgreSQL Database Connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_eQBamn24MZvE@ep-wandering-pond-bekebxoi-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require',
@@ -25,22 +39,23 @@ const pool = new Pool({
   }
 });
 
-// Ensure workspace_id columns exist on startup
-const initWorkspaceColumns = async () => {
+// Ensure workspace_id and role columns exist on startup
+const initDatabaseColumns = async () => {
   try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(255) DEFAULT 'default-workspace'`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'developer'`);
     await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(255) DEFAULT 'default-workspace'`);
     await pool.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(255) DEFAULT 'default-workspace'`);
-    console.log('✅ Workspace isolation columns verified');
+    console.log('✅ Workspace isolation and RBAC columns verified');
   } catch (err) {
-    console.error('Error verifying workspace columns:', err.message);
+    console.error('Error verifying database columns:', err.message);
   }
 };
-initWorkspaceColumns();
+initDatabaseColumns();
 
 // Test Endpoint
 app.get('/', (req, res) => {
-  res.send('DevPulse Backend API is running!');
+  res.send('DevPulse Backend API is running with RBAC & Workspace Isolation!');
 });
 
 // 1. REST API Route: Get all users in workspace
@@ -63,7 +78,7 @@ app.post('/api/users', async (req, res) => {
     const { name, email, role } = req.body;
     const newUser = await pool.query(
       'INSERT INTO users (name, email, role, workspace_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, email, role, req.workspaceId]
+      [name, email, role || 'developer', req.workspaceId]
     );
     res.status(201).json(newUser.rows[0]);
   } catch (err) {
@@ -72,8 +87,8 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// 1.2 REST API Route: Delete a user & associated tasks in workspace
-app.delete('/api/users/:id', async (req, res) => {
+// 1.2 REST API Route: Delete a user & associated tasks in workspace (Protected by requireAdmin)
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -126,8 +141,8 @@ app.post('/api/projects', async (req, res) => {
   }
 });
 
-// 2.2 REST API Route: Delete a project & its associated tasks in workspace
-app.delete('/api/projects/:id', async (req, res) => {
+// 2.2 REST API Route: Delete a project & its associated tasks in workspace (Protected by requireAdmin)
+app.delete('/api/projects/:id', requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -196,8 +211,8 @@ app.patch('/api/tasks/:id', async (req, res) => {
   }
 });
 
-// 6. REST API Route: Delete a task in workspace
-app.delete('/api/tasks/:id', async (req, res) => {
+// 6. REST API Route: Delete a task in workspace (Protected by requireAdmin)
+app.delete('/api/tasks/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query(
