@@ -42,7 +42,7 @@
 
 ## 📂 Project Structure
 
-```text
+text
 devpulse/
 ├── devpulse-frontend/       # Next.js App Router (UI, state, API integration)
 │   ├── app/
