@@ -53,6 +53,7 @@ devpulse/
     ├── server.js            # Scoped CRUD routes, middleware, and pg pool
     └── package.json
     ```
+    
 ## 🌐 Live Production Links
 
 - **Frontend Dashboard (Vercel):** [View Live App](https://devpulse-frontend-nu.vercel.app)
