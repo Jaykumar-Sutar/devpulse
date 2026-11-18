@@ -42,6 +42,9 @@ function DashboardContent() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // RBAC Simulation State: 'admin' or 'developer'
+  const [userRole, setUserRole] = useState<'admin' | 'developer'>('admin');
+
   // Form input states
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -60,7 +63,7 @@ function DashboardContent() {
   const selectedUserId = userParam ? Number(userParam) : null;
   const selectedProjectId = projectParam ? Number(projectParam) : null;
 
-  // Retrieve or generate a unique per-browser workspace ID
+  // Retrieve or generate a unique per-browser workspace ID & pass user role
   const getWorkspaceHeaders = () => {
     let workspaceId = localStorage.getItem('devpulse_workspace_id');
     if (!workspaceId) {
@@ -70,6 +73,7 @@ function DashboardContent() {
     return {
       'Content-Type': 'application/json',
       'x-workspace-id': workspaceId,
+      'x-user-role': userRole,
     };
   };
 
@@ -97,7 +101,10 @@ function DashboardContent() {
 
   const fetchData = async () => {
     try {
-      const headers = getWorkspaceHeaders();
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-workspace-id': localStorage.getItem('devpulse_workspace_id') || 'default-workspace',
+      };
       const [usersRes, projectsRes, tasksRes] = await Promise.all([
         fetch(`${API_URL}/api/users`, { headers }),
         fetch(`${API_URL}/api/projects`, { headers }),
@@ -240,13 +247,22 @@ function DashboardContent() {
     }
   };
 
-  // Delete Task Handler
+  // Delete Task Handler (Protected by RBAC)
   const handleDeleteTask = async (taskId: number) => {
+    if (userRole !== 'admin') {
+      toast.error('Access Denied: Admin privileges required to delete tasks.');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
         method: 'DELETE',
         headers: getWorkspaceHeaders(),
       });
+      if (res.status === 403) {
+        toast.error('Access Denied: Admin privileges required.');
+        return;
+      }
       if (res.ok) {
         toast.success('Task deleted');
         fetchData();
@@ -257,14 +273,23 @@ function DashboardContent() {
     }
   };
 
-  // Delete User Handler
+  // Delete User Handler (Protected by RBAC)
   const handleDeleteUser = async (userId: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (userRole !== 'admin') {
+      toast.error('Access Denied: Admin privileges required to delete users.');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/users/${userId}`, {
         method: 'DELETE',
         headers: getWorkspaceHeaders(),
       });
+      if (res.status === 403) {
+        toast.error('Access Denied: Admin privileges required.');
+        return;
+      }
       if (res.ok) {
         if (selectedUserId === userId) updateFilters(null, selectedProjectId);
         toast.success('Team member removed');
@@ -276,14 +301,23 @@ function DashboardContent() {
     }
   };
 
-  // Delete Project Handler
+  // Delete Project Handler (Protected by RBAC)
   const handleDeleteProject = async (projectId: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (userRole !== 'admin') {
+      toast.error('Access Denied: Admin privileges required to delete projects.');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/projects/${projectId}`, {
         method: 'DELETE',
         headers: getWorkspaceHeaders(),
       });
+      if (res.status === 403) {
+        toast.error('Access Denied: Admin privileges required.');
+        return;
+      }
       if (res.ok) {
         if (selectedProjectId === projectId) updateFilters(selectedUserId, null);
         toast.success('Project deleted');
@@ -349,6 +383,25 @@ function DashboardContent() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* RBAC Role Simulator Toggle */}
+          <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
+            <span className="text-slate-400 font-medium">Role:</span>
+            <button
+              onClick={() => {
+                const nextRole = userRole === 'admin' ? 'developer' : 'admin';
+                setUserRole(nextRole);
+                toast.info(`Switched role to ${nextRole.toUpperCase()}`);
+              }}
+              className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer shadow-sm ${
+                userRole === 'admin'
+                  ? 'bg-indigo-600 text-white shadow-[0_0_12px_rgba(99,102,241,0.6)]'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {userRole === 'admin' ? '🛡️ Admin' : '💻 Developer'}
+            </button>
+          </div>
+
           {(selectedProjectId || selectedUserId) && (
             <button
               onClick={() => updateFilters(null, null)}
@@ -552,13 +605,17 @@ function DashboardContent() {
                         <p className="text-xs text-slate-400 mt-0.5">{user.email || 'No email provided'}</p>
                         <p className="text-xs text-indigo-300/80 mt-0.5 font-medium">{user.role}</p>
                       </div>
-                      <button
-                        onClick={(e) => handleDeleteUser(user.id, e)}
-                        className="text-xs text-rose-400 hover:text-rose-300 p-1 transition cursor-pointer font-medium"
-                        title="Delete User"
-                      >
-                        ✕
-                      </button>
+                      {userRole === 'admin' ? (
+                        <button
+                          onClick={(e) => handleDeleteUser(user.id, e)}
+                          className="text-xs text-rose-400 hover:text-rose-300 p-1 transition cursor-pointer font-medium"
+                          title="Delete User"
+                        >
+                          ✕
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-600" title="Admin privileges required to delete">🔒</span>
+                      )}
                     </div>
                   );
                 })}
@@ -595,13 +652,17 @@ function DashboardContent() {
                         </p>
                         <p className="text-xs text-slate-400 mt-1 line-clamp-2">{project.description}</p>
                       </div>
-                      <button
-                        onClick={(e) => handleDeleteProject(project.id, e)}
-                        className="text-xs text-rose-400 hover:text-rose-300 p-1 transition cursor-pointer font-medium"
-                        title="Delete Project"
-                      >
-                        ✕
-                      </button>
+                      {userRole === 'admin' ? (
+                        <button
+                          onClick={(e) => handleDeleteProject(project.id, e)}
+                          className="text-xs text-rose-400 hover:text-rose-300 p-1 transition cursor-pointer font-medium"
+                          title="Delete Project"
+                        >
+                          ✕
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-600" title="Admin privileges required to delete">🔒</span>
+                      )}
                     </div>
                   );
                 })}
@@ -660,12 +721,18 @@ function DashboardContent() {
                         >
                           Toggle Status
                         </button>
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="text-xs text-rose-400 hover:text-rose-300 font-medium transition cursor-pointer"
-                        >
-                          Delete
-                        </button>
+                        {userRole === 'admin' ? (
+                          <button
+                            onClick={() => handleDeleteTask(task.id)}
+                            className="text-xs text-rose-400 hover:text-rose-300 font-medium transition cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-600 flex items-center gap-1" title="Admin privileges required">
+                            🔒 Locked
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -693,4 +760,4 @@ export default function Dashboard() {
       <DashboardContent />
     </Suspense>
   );
-} 
+}
