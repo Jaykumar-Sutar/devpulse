@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 
@@ -41,6 +41,8 @@ function DashboardContent() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [slowLoad, setSlowLoad] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // RBAC Simulation State: 'admin' or 'developer'
   const [userRole, setUserRole] = useState<'admin' | 'developer'>('admin');
@@ -62,6 +64,8 @@ function DashboardContent() {
   const projectParam = searchParams.get('project');
   const selectedUserId = userParam ? Number(userParam) : null;
   const selectedProjectId = projectParam ? Number(projectParam) : null;
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://devpulse-5fvi.onrender.com';
 
   // Retrieve or generate a unique per-browser workspace ID & pass user role
   const getWorkspaceHeaders = () => {
@@ -97,37 +101,68 @@ function DashboardContent() {
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
   };
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://devpulse-5fvi.onrender.com';
+  const fetchData = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setLoading(true);
+      setLoadError(null);
+      setSlowLoad(false);
+    }
 
-  const fetchData = async () => {
+    const slowTimer = isInitialLoad
+      ? setTimeout(() => {
+          setSlowLoad(true);
+        }, 3500)
+      : null;
+
     try {
+      const workspaceId =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('devpulse_workspace_id') || 'default-workspace'
+          : 'default-workspace';
+
       const headers = {
         'Content-Type': 'application/json',
-        'x-workspace-id': localStorage.getItem('devpulse_workspace_id') || 'default-workspace',
+        'x-workspace-id': workspaceId,
       };
+
       const [usersRes, projectsRes, tasksRes] = await Promise.all([
         fetch(`${API_URL}/api/users`, { headers }),
         fetch(`${API_URL}/api/projects`, { headers }),
         fetch(`${API_URL}/api/tasks`, { headers }),
       ]);
-      const usersData = await usersRes.json();
-      const projectsData = await projectsRes.json();
-      const tasksData = await tasksRes.json();
 
-      setUsers(usersData);
-      setProjects(projectsData);
-      setTasks(tasksData);
-    } catch (err) {
+      if (!usersRes.ok || !projectsRes.ok || !tasksRes.ok) {
+        throw new Error('Backend responded with an error while loading workspace data');
+      }
+
+      const [usersData, projectsData, tasksData] = await Promise.all([
+        usersRes.json(),
+        projectsRes.json(),
+        tasksRes.json(),
+      ]);
+
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setProjects(Array.isArray(projectsData) ? projectsData : []);
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
+      setLoadError(null);
+    } catch (err: any) {
       console.error('Error fetching data:', err);
-      toast.error('Failed to sync workspace data');
+      const message = err?.message || 'Failed to sync workspace data';
+      if (isInitialLoad) {
+        setLoadError(message);
+      } else {
+        toast.error(message);
+      }
     } finally {
+      if (slowTimer) clearTimeout(slowTimer);
       setLoading(false);
+      setSlowLoad(false);
     }
-  };
+  }, [API_URL]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(true);
+  }, [fetchData]);
 
   // Create User Handler
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -152,7 +187,7 @@ function DashboardContent() {
         setNewUserName('');
         setNewUserEmail('');
         setNewUserRole('');
-        fetchData();
+        fetchData(false);
       } else {
         toast.error('Could not add team member');
       }
@@ -183,7 +218,7 @@ function DashboardContent() {
         toast.success(`Project "${newProjectTitle.trim()}" created`);
         setNewProjectTitle('');
         setNewProjectDesc('');
-        fetchData();
+        fetchData(false);
       } else {
         toast.error('Could not create project');
       }
@@ -218,7 +253,7 @@ function DashboardContent() {
         setNewTaskTitle('');
         setNewTaskProjectId('');
         setNewTaskAssignedTo('');
-        fetchData();
+        fetchData(false);
       } else {
         toast.error('Could not create task');
       }
@@ -239,7 +274,7 @@ function DashboardContent() {
       });
       if (res.ok) {
         toast.success(`Task marked as ${nextStatus}`);
-        fetchData();
+        fetchData(false);
       }
     } catch (err) {
       console.error('Error updating task status:', err);
@@ -265,7 +300,7 @@ function DashboardContent() {
       }
       if (res.ok) {
         toast.success('Task deleted');
-        fetchData();
+        fetchData(false);
       }
     } catch (err) {
       console.error('Error deleting task:', err);
@@ -293,7 +328,7 @@ function DashboardContent() {
       if (res.ok) {
         if (selectedUserId === userId) updateFilters(null, selectedProjectId);
         toast.success('Team member removed');
-        fetchData();
+        fetchData(false);
       }
     } catch (err) {
       console.error('Error deleting user:', err);
@@ -321,7 +356,7 @@ function DashboardContent() {
       if (res.ok) {
         if (selectedProjectId === projectId) updateFilters(selectedUserId, null);
         toast.success('Project deleted');
-        fetchData();
+        fetchData(false);
       }
     } catch (err) {
       console.error('Error deleting project:', err);
@@ -352,9 +387,30 @@ function DashboardContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-indigo-400 font-medium text-lg gap-3">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-indigo-400 font-medium text-lg gap-3 px-4 text-center">
         <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.8)]"></div>
-        Loading DevPulse Enterprise Workspace...
+        <p>Loading DevPulse Enterprise Workspace...</p>
+        {slowLoad && (
+          <p className="text-xs text-slate-400 max-w-md font-normal">
+            Backend service may be waking up from idle on Render—this can take a few moments on first load.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (loadError && users.length === 0 && projects.length === 0 && tasks.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-200 gap-4 px-4 text-center">
+        <p className="text-rose-400 font-semibold text-base">Unable to load DevPulse workspace</p>
+        <p className="text-xs text-slate-400 max-w-md">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => fetchData(true)}
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer"
+        >
+          Retry Connection
+        </button>
       </div>
     );
   }
@@ -387,6 +443,7 @@ function DashboardContent() {
           <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
             <span className="text-slate-400 font-medium">Role:</span>
             <button
+              type="button"
               onClick={() => {
                 const nextRole = userRole === 'admin' ? 'developer' : 'admin';
                 setUserRole(nextRole);
@@ -404,6 +461,7 @@ function DashboardContent() {
 
           {(selectedProjectId || selectedUserId) && (
             <button
+              type="button"
               onClick={() => updateFilters(null, null)}
               className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 px-3 py-1.5 rounded-full font-medium transition cursor-pointer shadow-[0_0_10px_rgba(99,102,241,0.2)]"
             >
@@ -607,6 +665,7 @@ function DashboardContent() {
                       </div>
                       {userRole === 'admin' ? (
                         <button
+                          type="button"
                           onClick={(e) => handleDeleteUser(user.id, e)}
                           className="text-xs text-rose-400 hover:text-rose-300 p-1 transition cursor-pointer font-medium"
                           title="Delete User"
@@ -654,6 +713,7 @@ function DashboardContent() {
                       </div>
                       {userRole === 'admin' ? (
                         <button
+                          type="button"
                           onClick={(e) => handleDeleteProject(project.id, e)}
                           className="text-xs text-rose-400 hover:text-rose-300 p-1 transition cursor-pointer font-medium"
                           title="Delete Project"
@@ -716,6 +776,7 @@ function DashboardContent() {
 
                       <div className="flex justify-between items-center pt-2 border-t border-slate-900">
                         <button
+                          type="button"
                           onClick={() => handleUpdateStatus(task.id, task.status)}
                           className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer"
                         >
@@ -723,15 +784,14 @@ function DashboardContent() {
                         </button>
                         {userRole === 'admin' ? (
                           <button
+                            type="button"
                             onClick={() => handleDeleteTask(task.id)}
                             className="text-xs text-rose-400 hover:text-rose-300 font-medium transition cursor-pointer"
                           >
                             Delete
                           </button>
                         ) : (
-                          <span className="text-xs text-slate-600 flex items-center gap-1" title="Admin privileges required">
-                            🔒 Locked
-                          </span>
+                          <span className="text-xs text-slate-600" title="Admin privileges required to delete">🔒</span>
                         )}
                       </div>
                     </div>
@@ -750,10 +810,9 @@ export default function Dashboard() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin text-white">
-            Loading DevPulse Enterprise Workspace...
-          </div>
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-indigo-400 font-medium text-lg gap-3">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.8)]"></div>
+          <p>Loading DevPulse Enterprise Workspace...</p>
         </div>
       }
     >
