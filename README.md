@@ -1,6 +1,6 @@
 # 🚀 DevPulse | Enterprise Engineering Analytics & Task Tracker
 
-**DevPulse** is a production-grade, multi-tenant full-stack engineering dashboard and task-management platform designed to streamline team workflows, task tracking, and engineering analytics. Built as a flagship software engineering project, it demonstrates real-world patterns including multi-tenant database scoping, secure backend middleware, relational integrity with PostgreSQL transactions, and state synchronization via URL query parameters.
+**DevPulse** is a multi-tenant full-stack engineering dashboard and task-management platform built to streamline team workflows, task tracking, and engineering analytics. It demonstrates multi-tenant workspace scoping, role-based access control (`requireAdmin`), relational integrity with PostgreSQL transactions, URL query filter persistence, and automated unit testing.
 
 ---
 
@@ -14,7 +14,8 @@
 
 ### **Backend**
 - **Runtime & Framework:** Node.js, Express.js REST API
-- **Middleware:** Custom CORS configuration and header extraction middleware (`x-workspace-id`)
+- **Middleware & Security:** CORS configuration, workspace header extraction (`x-workspace-id`), and `requireAdmin` role guard (`x-user-role`)
+- **Testing:** Node.js built-in test runner (`node --test` via `npm test`)
 - **Hosting:** Render
 
 ### **Database & Data Integrity**
@@ -27,22 +28,24 @@
 ## 🌟 Key Features & Architectural Highlights
 
 ### 1. Multi-Tenant Guest Session Isolation (No-Login Sandbox)
-- **The Challenge:** Providing multiple evaluators, recruiters, or mobile devices with an independent testing environment without forcing them through a rigid authentication wall.
-- **The Solution:** Implemented client-side workspace generation using `crypto.randomUUID()` stored in browser `localStorage`. Each HTTP request transmits this identifier via a custom `x-workspace-id` header. Express middleware intercepts this header and dynamically scopes all SQL queries (`WHERE workspace_id = $1`), ensuring complete data privacy and sandbox separation across different browsers or devices.
+- **The Challenge:** Providing evaluators, recruiters, or different devices with independent testing sandboxes without requiring a full login flow.
+- **The Solution:** Generates a workspace identifier stored in browser `localStorage` and sends it on requests via the `x-workspace-id` header. Express middleware resolves the workspace ID (falling back to `default-workspace` when absent) and scopes queries by `workspace_id`.
 
-### 2. Reactive Cross-Column Filtering & URL Persistence
-- Features interconnected UI cards for **Team Members** and **Projects**. Clicking a project or team member instantly filters the central task workflow.
-- Synchronizes active filters directly to URL query parameters (`?user=X&project=Y`) via Next.js router hooks, allowing state survival across page refreshes and direct shareable link states.
+### 2. Role-Based Access Control (`requireAdmin`) & Unit Tests
+- Protects destructive `DELETE` routes on the backend by checking `x-user-role` and returning `403` when the role is not `'admin'`, paired with UI role guards.
+- Includes unit tests in `devpulse-backend/test/rbac.test.js` covering allowed admin requests, non-admin blocks, missing/empty/cased role edge cases, and workspace ID fallback behavior.
 
-### 3. Relational Data Integrity & Transactions
-- Utilizes PostgreSQL foreign-key relationships across `users`, `projects`, and `tasks`.
-- Leverages explicit database transactions (`BEGIN`/`COMMIT`/`ROLLBACK`) during cascade deletions (e.g., ensuring deleting a project or user cleanly purges associated task rows without leaving orphaned records).
+### 3. Reactive Cross-Column Filtering & URL Persistence
+- Clicking a team member or project filters tasks dynamically and syncs active filters to URL query parameters so selections persist across refreshes.
+
+### 4. Relational Data Integrity & Transactions
+- Uses PostgreSQL relationships across `users`, `projects`, and `tasks` with explicit `BEGIN`/`COMMIT`/`ROLLBACK` transactions when deleting parent records and associated tasks.
 
 ---
 
 ## 📂 Project Structure
 
-text
+```text
 devpulse/
 ├── devpulse-frontend/       # Next.js App Router (UI, state, API integration)
 │   ├── app/
@@ -50,9 +53,10 @@ devpulse/
 │   └── package.json
 │
 └── devpulse-backend/        # Express REST API Server
-    ├── server.js            # Scoped CRUD routes, middleware, and pg pool
-    └── package.json
-    ```
+    ├── server.js            # Scoped CRUD routes, RBAC middleware, and pg pool
+    ├── package.json         # Includes "test": "node --test"
+    └── test/
+        └── rbac.test.js     # Unit and edge-case tests for RBAC & workspace header
 
 ## 🌐 Live Production Links
 
