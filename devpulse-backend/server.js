@@ -33,7 +33,7 @@ const requireAdmin = async (req, res, next) => {
 
 // Neon PostgreSQL Database Connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_eQBamn24MZvE@ep-wandering-pond-bekebxoi-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require',
+  connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   }
