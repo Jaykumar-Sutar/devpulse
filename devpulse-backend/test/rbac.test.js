@@ -44,6 +44,31 @@ test('requireAdmin blocks non-admin requests with 403', () => {
   });
 });
 
+test('requireAdmin blocks missing or empty x-user-role headers with 403', () => {
+  for (const headers of [{}, { 'x-user-role': '' }, { 'x-user-role': 'ADMIN' }]) {
+    const req = { headers };
+    let statusCode = null;
+    let nextCalled = false;
+
+    const res = {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json() {
+        return this;
+      }
+    };
+
+    requireAdmin(req, res, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(statusCode, 403);
+    assert.equal(nextCalled, false);
+  }
+});
+
 test('requireAdmin allows requests with x-user-role: admin', () => {
   const req = { headers: { 'x-user-role': 'admin' } };
   let nextCalled = false;
