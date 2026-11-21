@@ -57,6 +57,7 @@ devpulse/
     ├── package.json         # Includes "test": "node --test"
     └── test/
         └── rbac.test.js     # Unit and edge-case tests for RBAC & workspace header
+---
 
 ## 🌐 Live Production Links
 
