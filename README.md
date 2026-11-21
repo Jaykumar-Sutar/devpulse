@@ -1,5 +1,3 @@
-# 🚀 DevPulse | Enterprise Engineering Analytics & Task Tracker
-
 **DevPulse** is a multi-tenant full-stack engineering dashboard and task-management platform built to streamline team workflows, task tracking, and engineering analytics. It demonstrates multi-tenant workspace scoping, role-based access control (`requireAdmin`), relational integrity with PostgreSQL transactions, URL query filter persistence, and automated unit testing.
 
 ---
